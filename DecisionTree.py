@@ -75,8 +75,9 @@ class DecisionTree:
 def create_decision_trees(data, tree_count, output_pipe):
     random.seed()
     result = []
-    sample = BalancedSample(data, data.getSmallestCategorySize())
+    sample = BalancedSample(data, 10000)
     for tree_number in range(0, tree_count):
         sample.resample()
         result.append(DecisionTree(sample))
     output_pipe.send(result)
+
