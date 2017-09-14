@@ -22,3 +22,9 @@ class DataContainer:
     def getRandomDataPoint(self, category_number):
         random_index = random.randrange(0, len(data_points[category_number]))
         return self.data_points[random_index]
+
+    def getDataPoints(self):
+        for category_number, category in enumerate(self.data_points):
+            for data_point in category:
+                yield data_point, category_number
+
