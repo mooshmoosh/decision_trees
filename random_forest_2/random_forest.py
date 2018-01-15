@@ -1,7 +1,13 @@
 from collections import namedtuple
 import random
 
+DEBUG = False
+def debug(*args):
+    if DEBUG:
+        print(*args)
+
 DecisionNode = namedtuple('DecisionNode', ['final', 'threshold', 'above', 'below', 'result'])
+
 
 class DataPoint:
     def __init__(self, identifier, data):
@@ -160,9 +166,10 @@ class DecisionTree:
         return step.result
 
 class RandomForest:
-    def __init__(self):
+    def __init__(self, tree_count):
         self.trees = []
         self.category_count = 0
+        self.tree_count = tree_count
 
     def evaluate(self, inputs):
         result = [0] * self.category_count
@@ -176,4 +183,5 @@ class RandomForest:
         self.category_count = data.category_count
         self.trees = []
         for index in range(0, self.tree_count):
+            debug("generating tree", index, "out of", self.tree_count)
             self.trees.append(DecisionTree(data.randomSample()), 5)
