@@ -113,7 +113,7 @@ class TextDataContainer(random_forest.DataContainer):
         In the case of Text data the coordinate is somewhere randomly around
         the location the offset refers to. We use the geometric distribution
         so that the number is possibly infinite. It should be (on average)
-        about 5 characters away, but 10 characters away is within 1 standard
+        about 5 characters away (on either side), but 10 characters away is within 1 standard
         deviation.
         """
-        return numpy.random.geometric(1 / (self.character_count * 5))
+        return numpy.random.geometric(1 / (self.character_count * 10))
