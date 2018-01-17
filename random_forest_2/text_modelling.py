@@ -16,7 +16,7 @@ class PredictedTextContainer(random_forest.DataContainer):
         with open('character_map.json', 'r') as f:
             self.character_map = json.loads(f.read())
         self.character_count = max(self.character_map.values())
-        self.category_count = self.character_count
+        self.category_count = self.character_count + 1
         # The decision trees should be making their decisions using roughly
         # 10 characters of data.
         self.subvector_dimension = self.character_count * 10
@@ -24,10 +24,12 @@ class PredictedTextContainer(random_forest.DataContainer):
         for file_index, filename in enumerate(self.filenames):
             with open(filename, 'r') as f:
                 content = f.read()
+                content_as_ints = [self.character_map.get(character, 0) for character in content]
                 self.files[file_index] = {
                     'length': len(content),
-                    'content': content
+                    'content': content_as_ints
                 }
+        self.last_dot_product = (None, None, None, None)
 
     def getFileLength(self, file_index):
         return self.files[file_index]['length']
@@ -39,7 +41,9 @@ class PredictedTextContainer(random_forest.DataContainer):
         in self.filenames, and the index of a character into the file.
         """
         result = []
-        sample_size = sum(self.getFileLength(index) for index in range(len(self.filenames)))
+        #sample_size = sum(self.getFileLength(index) for index in range(len(self.filenames)))
+        # reducing the sample size for testing
+        sample_size = 1000
         for _ in range(0, sample_size):
             file_index = random.randint(0, len(self.filenames) - 1)
             offset = random.randint(0, self.getFileLength(file_index))
@@ -60,10 +64,8 @@ class PredictedTextContainer(random_forest.DataContainer):
             coordinate_offset = offset - int(coordinate / self.character_count) - 1
             character_id = coordinate % self.character_count
             if coordinate_offset >= 0 and coordinate_offset < self.files[file_id]['length']:
-                character = self.files[file_id]['content'][coordinate_offset]
-                if character not in self.character_map and character_id == 0:
-                    vector.append(1)
-                elif character in self.character_map and character_id == self.character_map[character]:
+                character_at_position = self.files[file_id]['content'][coordinate_offset]
+                if character_at_position == character_id:
                     vector.append(1)
                 else:
                     vector.append(0)
@@ -79,11 +81,7 @@ class PredictedTextContainer(random_forest.DataContainer):
         if offset < 0 or offset >= self.files[file_id]['length']:
             return 0
         else:
-            character = self.files[file_id]['content'][offset]
-            if character in self.character_map:
-                return self.character_map[character]
-            else:
-                return 0
+            return self.files[file_id]['content'][offset]
 
     def getRandomCoordinates(self):
         """
@@ -97,4 +95,22 @@ class PredictedTextContainer(random_forest.DataContainer):
         about 10 characters away, but 20 characters away is within 1 standard
         deviation.
         """
-        return sorted(list(set(numpy.random.geometric(1 / (self.character_count * 10)) for _ in range(self.subvector_dimension))))
+        return list(reversed(sorted(set(numpy.random.geometric(1 / (self.character_count * 10)) for _ in range(self.subvector_dimension)))))
+
+    def dotProduct(self, identifier, coordinates, coeficients):
+        if self.last_dot_product[0:3] == (identifier, coordinates, coeficients):
+            return self.last_dot_product[3]
+        result = 0
+        file_id, offset = identifier
+        file_length = self.files[file_id]['length']
+        file_content = self.files[file_id]['content']
+        offsets = [offset - int(coordinate / self.character_count) - 1 for coordinate in coordinates]
+        character_ids = [coordinate % self.character_count for coordinate in coordinates]
+        for index, coordinate_offset in enumerate(offsets):
+            # The coordinate is an integer representing two values, the position
+            # relative to offset, and
+            if coordinate_offset >= 0 and coordinate_offset < file_length and file_content[coordinate_offset] == character_ids[index]:
+                result += coeficients[index]
+        self.last_dot_product = (identifier, coordinates, coeficients, result)
+        return result
+

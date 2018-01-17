@@ -8,7 +8,7 @@ import os
 
 random_forest.DEBUG = True
 
-model = random_forest.RandomForest(1000)
+model = random_forest.RandomForest(5)
 print("loading text documents")
 data = text_modelling.PredictedTextContainer([os.path.join('text_documents', filename) for filename in os.listdir('text_documents')])
 print("done")

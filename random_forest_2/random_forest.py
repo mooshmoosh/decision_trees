@@ -9,14 +9,13 @@ def debug(*args):
 
 DecisionNode = namedtuple('DecisionNode', ['final', 'threshold', 'above', 'below', 'result'])
 
-
 class DataPoint:
     def __init__(self, identifier, data):
         self.data = data
         self.identifier = identifier
 
     def __getitem__(self, coordinate):
-        return self.data.subVector(self.identifier, coordinate)
+        return self.data.subVector(self.identifier, [coordinate])[0]
 
 class DataSample:
     def __init__(self, data, identifiers):
@@ -25,26 +24,19 @@ class DataSample:
         self.data = data
         self.subvector_dimension = data.subvector_dimension
 
-    def subVectors(self, coordinates):
-        """
-        return a generator of data_point, category tuples. Each data_point
-        only contains the coordinates from the real data point specified
-        in coordinates.
-        """
+    def getDotProductsAndCategories(self, coordinates, coeficients):
         for identifier in self.identifiers:
-            yield self.data.subVector(identifier, coordinates), self.data.getCategory(identifier)
+            yield self.data.dotProduct(identifier, coordinates, coeficients), self.data.getCategory(identifier)
 
     def getRandomCoordinates(self):
         return self.data.getRandomCoordinates()
 
     def singleCategory(self):
-        result = None
-        for data_point, category in self.subVectors([]):
-            if category is None:
-                result = category
-            if category != result:
+        one_category = self.data.getCategory(self.identifiers[0])
+        for identifier in self.identifiers:
+            if self.data.getCategory(identifier) != one_category:
                 return False, None
-        return True, result
+        return True, one_category
 
     def size(self):
         return len(self.identifiers)
@@ -87,6 +79,9 @@ class DataContainer:
         """
         return []
 
+    def dotProduct(self, identifier, coordinates, coeficients):
+        return 0
+
     def subVector(self, identifier, coordinates):
         """
         Return the subvector of the datapoint identified by `identifier`
@@ -108,13 +103,13 @@ class DataContainer:
         """
         return []
 
-def compute_gini_impurity(category_counts):
+def compute_gini_impurity(category_counts, category_number):
     result = 0
     total = 0
     for category_count in category_counts:
         result += category_count ** 2
         total += category_count
-    return 1 - (result / (category_count ** 2))
+    return 1 - (result / (total ** 2))
 
 def dot_product(data_point, coordinates, coeficients):
     result = 0
@@ -143,8 +138,8 @@ def construct_random_decision_tree(sample, possible_split_count):
         # for each data point calculate the dot product of the selected coordinates with the weights
         debug("calculating dot products of coeficients and all data points")
         subvector_number = 0
-        for data_point, category in sample.subVectors(coordinates):
-            decision_values.append((dot_product(data_point, coordinates, coeficients), category))
+        for decision_value in sample.getDotProductsAndCategories(coordinates, coeficients):
+            decision_values.append(decision_value)
             subvector_number += 1
             if subvector_number % 100000 == 0:
                 debug("done ", subvector_number * 100 / sample.size(), "% of dot products the subvectors")
@@ -153,24 +148,34 @@ def construct_random_decision_tree(sample, possible_split_count):
         decision_values.sort(key=lambda x : x[0])
         lowest_gini_impurity = 1 # gini impurity is always less than 1
         for decision_value, category in decision_values:
-            category_counts[decision_value[1]] += 1
-            gini_impurity = compute_gini_impurity(category_counts)
+            try:
+                category_counts[category] += 1
+            except:
+                debug("could not set category_counts. category = ", category)
+                raise
+            gini_impurity = compute_gini_impurity(category_counts, sample.category_count)
+            debug("gini_impurity, split_value", gini_impurity, decision_value)
             if gini_impurity < lowest_gini_impurity:
                 lowest_gini_impurity = gini_impurity
-                best_split = decision_value[0]
+                best_split = decision_value
         if lowest_gini_impurity <= overall_lowest_gini_impurity:
             overall_lowest_gini_impurity = lowest_gini_impurity
             overall_best_split = best_split
             best_coordinates = coordinates
             best_coefficients = coeficients
     debug("finished evaluating all splits. Splitting the sample")
+    debug("best_coordinates:", best_coordinates)
+    debug("best_coefficients:", best_coefficients)
+    debug("overall_best_split:", overall_best_split)
     above_sample, below_sample = sample.split(lambda x : dot_product(x, best_coordinates, best_coefficients) > overall_best_split)
+    debug(above_sample.size(), "were in the above tree")
+    debug(below_sample.size(), "were in the below tree")
     debug("creating left and right branches")
+    above_subtree = construct_random_decision_tree(above_sample, possible_split_count),
+    below_subtree = construct_random_decision_tree(below_sample, possible_split_count),
     return DecisionNode(
         final=False,
         threshold = best_split,
-        above=construct_random_decision_tree(above_sample, possible_split_count),
-        below=construct_random_decision_tree(below_sample, possible_split_count),
         result=None)
 
 class DecisionTree:
